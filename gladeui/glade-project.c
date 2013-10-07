@@ -1764,7 +1764,18 @@ glade_project_write_resource_path (GladeProject    *project,
 }
 
 static gint
-sort_project_dependancies (GObject *a, GObject *b)
+sort_project_by_name (GObject *a, GObject *b)
+{
+	GladeWidget *ga, *gb;
+
+	ga = glade_widget_get_from_gobject (a);
+	gb = glade_widget_get_from_gobject (b);
+
+	return strcmp (ga->name, gb->name);
+}
+
+static gint
+sort_project_by_dependancy (GObject *a, GObject *b)
 {
 	GladeWidget *ga, *gb;
 
@@ -1775,8 +1786,8 @@ sort_project_dependancies (GObject *a, GObject *b)
 		return 1;
 	else if (glade_widget_adaptor_depends (gb->adaptor, gb, ga))
 		return -1;
-	else 
-		return strcmp (ga->name, gb->name);
+	else
+		return 0;
 }
 
 static GladeXmlContext *
@@ -1804,10 +1815,14 @@ glade_project_write (GladeProject *project)
 
 	glade_project_write_resource_path (project, context, root);
 
-	/* Sort the whole thing */
+	/* Sort the whole thing. First by name to stabilize the output a little bit */
 	project->priv->objects = 
 		g_list_sort (project->priv->objects, 
-			     (GCompareFunc)sort_project_dependancies);
+			     (GCompareFunc)sort_project_by_name);
+	/* Secondly by dependency since some items must come before others */
+	project->priv->objects = 
+		g_list_sort (project->priv->objects, 
+			     (GCompareFunc)sort_project_by_dependancy);
 
 	for (list = project->priv->objects; list; list = list->next)
 	{
