@@ -10282,29 +10282,33 @@ glade_gtk_icon_factory_read_sources (GladeWidget  *widget,
 		      glade_xml_get_property_string_required (source_node, GLADE_TAG_STOCK_ID, NULL)))
 			continue;
 
-		if (!(str = glade_xml_get_property_string_required (source_node, GLADE_TAG_FILENAME, NULL)))
-		{
-			g_free (icon_name);
-			continue;
-		}
 
 		if (!current_icon_name || strcmp (current_icon_name, icon_name) != 0)
 			current_icon_name = (g_free (current_icon_name), g_strdup (icon_name));
 
 		source = gtk_icon_source_new ();
-		
-		/* Deal with the filename... */
-		value = glade_utils_value_from_string (GDK_TYPE_PIXBUF, str,
-						       widget->project, widget);
-		pixbuf = g_value_dup_object (value);
-		g_value_unset (value);
-		g_free (value);
 
-		gtk_icon_source_set_pixbuf (source, pixbuf);
-		g_object_unref (G_OBJECT (pixbuf));
-		g_free (str);
+		if (str = glade_xml_get_property_string (source_node, GLADE_TAG_FILENAME))
+		{
+			/* Deal with the filename... */
+			value = glade_utils_value_from_string (GDK_TYPE_PIXBUF, str,
+								   widget->project, widget);
+			pixbuf = g_value_dup_object (value);
+			g_value_unset (value);
+			g_free (value);
+
+			gtk_icon_source_set_pixbuf (source, pixbuf);
+			g_object_unref (G_OBJECT (pixbuf));
+			g_free (str);
+		}
 
 		/* Now the attributes... */
+		if ((str = glade_xml_get_property_string (source_node, GLADE_TAG_ICON_NAME)) != NULL)
+		{
+			gtk_icon_source_set_icon_name (source, str);
+			g_free (str);
+		}
+
 		if ((str = glade_xml_get_property_string (source_node, GLADE_TAG_DIRECTION)) != NULL)
 		{
 			GtkTextDirection direction =
@@ -10429,7 +10433,12 @@ write_icon_sources (gchar          *icon_name,
 			g_free (string);
 		}
 
-		pixbuf = gtk_icon_source_get_pixbuf (source);
+		if ((string = (gchar *)gtk_icon_source_get_icon_name (source)))
+			glade_xml_node_set_property_string (source_node, GLADE_TAG_ICON_NAME, string);
+
+		if (!(pixbuf = gtk_icon_source_get_pixbuf (source)))
+			continue;
+
 		string = g_object_get_data (G_OBJECT (pixbuf), "GladeFileName");
 
 		glade_xml_node_set_property_string (source_node, 
@@ -10543,10 +10552,15 @@ serialize_icon_sources (gchar          *icon_name,
 		gchar         *str;
 
 		pixbuf = gtk_icon_source_get_pixbuf (source);
-		str    = g_object_get_data (G_OBJECT (pixbuf), "GladeFileName");
+		if (pixbuf)
+			str = g_object_get_data (G_OBJECT (pixbuf), "GladeFileName");
 
-		g_string_append_printf (string, "%s[%s] ", icon_name, str);
+		g_string_append_printf (string, "%s[%s] ", icon_name, str ? str : "");
 
+		str = (gchar *)gtk_icon_source_get_icon_name (source);
+		if (str)
+			g_string_append_printf (string, "icon-name-%s ", str);
+        
 		if (!gtk_icon_source_get_direction_wildcarded (source))
 		{
 			GtkTextDirection direction = gtk_icon_source_get_direction (source);
